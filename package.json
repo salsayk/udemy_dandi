@@ -9,10 +9,17 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@langchain/community": "^1.1.1",
+    "@langchain/core": "^1.1.8",
+    "@langchain/openai": "^1.2.0",
     "@supabase/supabase-js": "^2.89.0",
+    "langchain": "^1.2.3",
     "next": "16.1.1",
     "react": "19.2.3",
     "react-dom": "19.2.3"
+  },
+  "resolutions": {
+    "@langchain/core": "1.1.8"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
@@ -22,6 +29,6 @@
     "eslint": "^9",
     "eslint-config-next": "16.1.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }
