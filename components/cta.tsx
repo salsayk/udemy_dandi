@@ -4,13 +4,15 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight } from "lucide-react"
 import { useSession, signIn } from "next-auth/react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export function CTA() {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const handleGetStarted = () => {
     if (session) {
-      window.location.href = "/dashboards"
+      router.push("/dashboards")
     } else {
       signIn("google", { callbackUrl: "/dashboards" })
     }

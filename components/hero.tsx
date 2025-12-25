@@ -4,14 +4,16 @@ import { Button } from "@/components/ui/button"
 import { ArrowRight, Sparkles } from "lucide-react"
 import { useSession, signIn } from "next-auth/react"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export function Hero() {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const handleGetStarted = () => {
     if (session) {
       // Already logged in, redirect to dashboard
-      window.location.href = "/dashboards"
+      router.push("/dashboards")
     } else {
       // Not logged in, sign in with Google
       signIn("google", { callbackUrl: "/dashboards" })

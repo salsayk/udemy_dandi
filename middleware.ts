@@ -2,10 +2,19 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse, type NextRequest } from "next/server";
 
 export async function middleware(request: NextRequest) {
+  // Check for session token cookie (works in both dev and production)
+  const sessionToken = request.cookies.get("next-auth.session-token")?.value 
+    || request.cookies.get("__Secure-next-auth.session-token")?.value;
+
+  // Also try to get the decoded token for additional validation
   const token = await getToken({ 
     req: request, 
-    secret: process.env.NEXTAUTH_SECRET 
+    secret: process.env.NEXTAUTH_SECRET,
+    secureCookie: process.env.NODE_ENV === "production",
   });
+
+  // User is authenticated if either the cookie exists or we have a valid token
+  const isAuthenticated = !!sessionToken || !!token;
 
   // Protected routes - redirect to login if not authenticated
   const protectedPaths = ['/dashboards', '/playground', '/use-cases', '/billing', '/settings', '/protected'];
@@ -13,7 +22,7 @@ export async function middleware(request: NextRequest) {
     request.nextUrl.pathname.startsWith(path)
   );
 
-  if (isProtectedPath && !token) {
+  if (isProtectedPath && !isAuthenticated) {
     const url = request.nextUrl.clone();
     url.pathname = '/';
     url.searchParams.set('message', 'Please sign in to access this page');

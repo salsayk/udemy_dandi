@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Check } from "lucide-react"
 import { useSession, signIn } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 const plans = [
   {
@@ -53,16 +54,17 @@ const plans = [
 
 export function Pricing() {
   const { data: session } = useSession()
+  const router = useRouter()
 
   const handlePlanClick = (planName: string) => {
     if (planName === "Enterprise") {
-      // For enterprise, you might want to open a contact form
+      // For enterprise, open email client
       window.location.href = "mailto:sales@dandi.dev"
       return
     }
     
     if (session) {
-      window.location.href = "/dashboards"
+      router.push("/dashboards")
     } else {
       signIn("google", { callbackUrl: "/dashboards" })
     }
