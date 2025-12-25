@@ -1,5 +1,6 @@
 import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
+import { supabase } from "@/app/lib/supabase";
 
 export const authOptions: NextAuthOptions = {
   providers: [
@@ -9,6 +10,58 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    async signIn({ user, account, profile }) {
+      // Save or update user in Supabase on every sign in
+      if (account && user.email) {
+        try {
+          const googleProfile = profile as { picture?: string };
+          
+          // Check if user already exists
+          const { data: existingUser } = await supabase
+            .from("users")
+            .select("id")
+            .eq("email", user.email)
+            .single();
+
+          if (existingUser) {
+            // Update existing user's last login and profile info
+            await supabase
+              .from("users")
+              .update({
+                name: user.name,
+                image: googleProfile?.picture || user.image,
+                last_login_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              })
+              .eq("email", user.email);
+            
+            console.log("Updated existing user:", user.email);
+          } else {
+            // Create new user
+            const { error } = await supabase.from("users").insert({
+              email: user.email,
+              name: user.name,
+              image: googleProfile?.picture || user.image,
+              provider: account.provider,
+              provider_account_id: account.providerAccountId,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+              last_login_at: new Date().toISOString(),
+            });
+
+            if (error) {
+              console.error("Error creating user in Supabase:", error);
+            } else {
+              console.log("Created new user:", user.email);
+            }
+          }
+        } catch (error) {
+          console.error("Error saving user to Supabase:", error);
+          // Don't block sign in if database save fails
+        }
+      }
+      return true;
+    },
     async jwt({ token, user, account, profile }) {
       // On initial sign in, persist user data to the token
       if (account && user) {
