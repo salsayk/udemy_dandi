@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Sidebar } from "@/app/components/sidebar";
+import { Sidebar, SidebarProvider, MobileMenuButton } from "@/app/components/sidebar";
 
-export default function PlaygroundPage() {
+function PlaygroundContent() {
   const [mounted, setMounted] = useState(false);
   const [apiKey, setApiKey] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -43,43 +43,46 @@ export default function PlaygroundPage() {
     <div className="min-h-screen bg-slate-50 flex">
       <Sidebar />
 
-      <main className="flex-1 flex flex-col">
+      <main className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
-          <div className="flex items-center gap-2 text-sm">
-            <span className="text-slate-400">Pages</span>
-            <span className="text-slate-300">/</span>
-            <span className="text-slate-700 font-medium">API Playground</span>
+        <header className="h-14 lg:h-16 bg-white border-b border-slate-200 flex items-center justify-between px-4 lg:px-8 sticky top-0 z-30">
+          <div className="flex items-center gap-3">
+            <MobileMenuButton />
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-slate-400 hidden sm:inline">Pages</span>
+              <span className="text-slate-300 hidden sm:inline">/</span>
+              <span className="text-slate-700 font-medium">API Playground</span>
+            </div>
           </div>
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
+          <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-50 border border-emerald-200">
             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             <span className="text-sm font-medium text-emerald-700">Operational</span>
           </div>
         </header>
 
         {/* Page Content */}
-        <div className="flex-1 p-8 overflow-auto">
+        <div className="flex-1 p-4 lg:p-8 overflow-auto">
           <div className="max-w-2xl mx-auto">
-            <h1 className="text-3xl font-bold text-slate-900 mb-2">API Playground</h1>
-            <p className="text-slate-500 mb-8">
+            <h1 className="text-2xl lg:text-3xl font-bold text-slate-900 mb-2">API Playground</h1>
+            <p className="text-slate-500 mb-6 lg:mb-8">
               Test your API key to verify it&apos;s working correctly.
             </p>
 
             {/* API Key Test Form */}
-            <div className="bg-white rounded-2xl border border-slate-200 p-8">
+            <div className="bg-white rounded-xl lg:rounded-2xl border border-slate-200 p-4 lg:p-8">
               <div className="flex items-center gap-3 mb-6">
-                <div className="p-3 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <div className="p-2.5 lg:p-3 rounded-lg lg:rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="lg:w-6 lg:h-6">
                     <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
                   </svg>
                 </div>
                 <div>
-                  <h2 className="text-xl font-semibold text-slate-900">Validate API Key</h2>
+                  <h2 className="text-lg lg:text-xl font-semibold text-slate-900">Validate API Key</h2>
                   <p className="text-sm text-slate-500">Enter your API key to test if it&apos;s valid</p>
                 </div>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-6">
+              <form onSubmit={handleSubmit} className="space-y-4 lg:space-y-6">
                 <div>
                   <label htmlFor="apiKey" className="block text-sm font-medium text-slate-700 mb-2">
                     API Key
@@ -121,9 +124,9 @@ export default function PlaygroundPage() {
               </form>
 
               {/* Info Box */}
-              <div className="mt-8 p-4 rounded-xl bg-slate-50 border border-slate-200">
+              <div className="mt-6 lg:mt-8 p-3 lg:p-4 rounded-xl bg-slate-50 border border-slate-200">
                 <div className="flex items-start gap-3">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 mt-0.5">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-400 mt-0.5 flex-shrink-0">
                     <circle cx="12" cy="12" r="10"/>
                     <path d="M12 16v-4"/>
                     <path d="M12 8h.01"/>
@@ -143,3 +146,10 @@ export default function PlaygroundPage() {
   );
 }
 
+export default function PlaygroundPage() {
+  return (
+    <SidebarProvider>
+      <PlaygroundContent />
+    </SidebarProvider>
+  );
+}

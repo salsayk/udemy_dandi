@@ -4,7 +4,22 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
+
+// Sidebar context for mobile toggle
+interface SidebarContextType {
+  isOpen: boolean;
+  toggle: () => void;
+  close: () => void;
+}
+
+const SidebarContext = createContext<SidebarContextType>({
+  isOpen: false,
+  toggle: () => {},
+  close: () => {},
+});
+
+export const useSidebar = () => useContext(SidebarContext);
 
 // Navigation item type
 interface NavItem {
@@ -134,7 +149,7 @@ function WorkspaceSelector() {
 }
 
 // Navigation item component
-function NavItemLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
+function NavItemLink({ item, isActive, onClick }: { item: NavItem; isActive: boolean; onClick?: () => void }) {
   const linkClass = `flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all ${
     isActive
       ? "bg-gradient-to-r from-blue-50 to-indigo-50 text-blue-700 border border-blue-100"
@@ -148,6 +163,7 @@ function NavItemLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
         target="_blank"
         rel="noopener noreferrer"
         className={linkClass}
+        onClick={onClick}
       >
         <NavIcon name={item.icon} isActive={isActive} />
         {item.name}
@@ -157,7 +173,7 @@ function NavItemLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
   }
 
   return (
-    <Link href={item.href} className={linkClass}>
+    <Link href={item.href} className={linkClass} onClick={onClick}>
       <NavIcon name={item.icon} isActive={isActive} />
       {item.name}
     </Link>
@@ -230,30 +246,30 @@ function UserProfile() {
   );
 }
 
-// Main Sidebar component
-export function Sidebar() {
+// Sidebar content (reusable between mobile and desktop)
+function SidebarContent({ onNavClick }: { onNavClick?: () => void }) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 bg-white border-r border-slate-200 flex flex-col min-h-screen">
+    <>
       {/* Logo */}
-      <div className="p-6 border-b border-slate-100">
+      <div className="p-4 lg:p-6 border-b border-slate-100">
         <Logo />
       </div>
 
       {/* Workspace Selector */}
-      <div className="px-4 py-3">
+      <div className="px-3 lg:px-4 py-3">
         <WorkspaceSelector />
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-2">
+      <nav className="flex-1 px-3 lg:px-4 py-2 overflow-y-auto">
         <ul className="space-y-1">
           {navItems.map((item) => {
             const isActive = item.external ? false : pathname === item.href;
             return (
               <li key={item.name}>
-                <NavItemLink item={item} isActive={isActive} />
+                <NavItemLink item={item} isActive={isActive} onClick={onNavClick} />
               </li>
             );
           })}
@@ -261,12 +277,123 @@ export function Sidebar() {
       </nav>
 
       {/* Footer - User Profile */}
-      <div className="p-4 border-t border-slate-100">
+      <div className="p-3 lg:p-4 border-t border-slate-100">
         <UserProfile />
       </div>
-    </aside>
+    </>
+  );
+}
+
+// Mobile menu toggle button
+export function MobileMenuButton() {
+  const { toggle, isOpen } = useSidebar();
+
+  return (
+    <button
+      onClick={toggle}
+      className="lg:hidden p-2 rounded-lg hover:bg-slate-100 transition-colors"
+      aria-label="Toggle sidebar"
+    >
+      {isOpen ? (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" x2="6" y1="6" y2="18"/>
+          <line x1="6" x2="18" y1="6" y2="18"/>
+        </svg>
+      ) : (
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="4" x2="20" y1="12" y2="12"/>
+          <line x1="4" x2="20" y1="6" y2="6"/>
+          <line x1="4" x2="20" y1="18" y2="18"/>
+        </svg>
+      )}
+    </button>
+  );
+}
+
+// Sidebar Provider
+export function SidebarProvider({ children }: { children: React.ReactNode }) {
+  const [isOpen, setIsOpen] = useState(false);
+
+  const toggle = () => setIsOpen(!isOpen);
+  const close = () => setIsOpen(false);
+
+  // Close sidebar on route change
+  const pathname = usePathname();
+  useEffect(() => {
+    close();
+  }, [pathname]);
+
+  // Prevent body scroll when sidebar is open on mobile
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "unset";
+    }
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [isOpen]);
+
+  // Close on escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        close();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, []);
+
+  // Close on resize to desktop
+  useEffect(() => {
+    const handleResize = () => {
+      if (window.innerWidth >= 1024) {
+        close();
+      }
+    };
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  return (
+    <SidebarContext.Provider value={{ isOpen, toggle, close }}>
+      {children}
+    </SidebarContext.Provider>
+  );
+}
+
+// Main Sidebar component
+export function Sidebar() {
+  const { isOpen, close } = useSidebar();
+
+  return (
+    <>
+      {/* Mobile Overlay */}
+      {isOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-40 lg:hidden"
+          onClick={close}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Mobile Sidebar */}
+      <aside
+        className={`fixed top-0 left-0 h-full w-72 bg-white border-r border-slate-200 flex flex-col z-50 lg:hidden transform transition-transform duration-300 ease-in-out ${
+          isOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+      >
+        <SidebarContent onNavClick={close} />
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside className="hidden lg:flex w-64 bg-white border-r border-slate-200 flex-col min-h-screen sticky top-0">
+        <SidebarContent />
+      </aside>
+    </>
   );
 }
 
 export default Sidebar;
-
