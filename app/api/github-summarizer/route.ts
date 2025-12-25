@@ -132,8 +132,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate summary using LangChain and OpenAI
-    const summary = await generateSummary(repoInfo, readmeContent);
+    // Generate summary using LangChain and OpenAI with structured output
+    const analysis = await generateSummary(repoInfo, readmeContent);
 
     return NextResponse.json({
       repository: {
@@ -148,7 +148,13 @@ export async function POST(request: Request) {
         createdAt: repoInfo.created_at,
         updatedAt: repoInfo.updated_at,
       },
-      summary,
+      analysis: {
+        purpose: analysis.purpose,
+        features: analysis.features,
+        techStack: analysis.techStack,
+        targetAudience: analysis.targetAudience,
+        summary: analysis.summary,
+      },
       status: 'completed'
     }, { status: 200 });
   } catch (error) {

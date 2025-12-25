@@ -1,5 +1,7 @@
 import { ChatOpenAI } from '@langchain/openai';
-import { HumanMessage, SystemMessage } from '@langchain/core/messages';
+import { StructuredOutputParser } from '@langchain/core/output_parsers';
+import { ChatPromptTemplate } from '@langchain/core/prompts';
+import { z } from 'zod';
 
 // GitHub repository information interface
 export interface GitHubRepoInfo {
@@ -15,37 +17,56 @@ export interface GitHubRepoInfo {
   updated_at: string;
 }
 
-// Generate summary using LangChain and OpenAI
-export async function generateSummary(repoInfo: GitHubRepoInfo, readmeContent: string | null): Promise<string> {
+// Structured output schema for the summary
+const summarySchema = z.object({
+  purpose: z.string().describe('A brief description of what the project does and its main purpose'),
+  features: z.array(z.string()).describe('A list of key features and capabilities of the project'),
+  techStack: z.array(z.string()).describe('Technologies, frameworks, and languages used in the project'),
+  targetAudience: z.string().describe('Who would benefit from using this project'),
+  summary: z.string().describe('A comprehensive 2-3 paragraph summary of the repository'),
+});
+
+// Export the type for use in other files
+export type SummaryOutput = z.infer<typeof summarySchema>;
+
+// Generate summary using LangChain and OpenAI with structured output
+export async function generateSummary(repoInfo: GitHubRepoInfo, readmeContent: string | null): Promise<SummaryOutput> {
   const model = new ChatOpenAI({
     modelName: 'gpt-4o-mini',
     temperature: 0,
   });
 
-  const systemPrompt = `You are a technical analyst who summarizes GitHub repositories. 
-Provide a concise, informative summary that includes:
-1. What the project does (main purpose)
-2. Key features and capabilities
-3. Technology stack used
-4. Who would benefit from using it
-Keep the summary to 3-4 paragraphs maximum.`;
+  const parser = StructuredOutputParser.fromZodSchema(summarySchema);
 
-  const repoContext = `
-Repository: ${repoInfo.full_name}
-Description: ${repoInfo.description || 'No description provided'}
-Primary Language: ${repoInfo.language || 'Not specified'}
-Topics: ${repoInfo.topics?.join(', ') || 'None'}
-Stars: ${repoInfo.stargazers_count}
-Forks: ${repoInfo.forks_count}
-${readmeContent ? `\nREADME Content:\n${readmeContent}` : ''}
-`;
+  const prompt = ChatPromptTemplate.fromMessages([
+    ['system', `You are a technical analyst who summarizes GitHub repositories.
+Analyze the repository information provided and extract structured information about it.
 
-  const messages = [
-    new SystemMessage(systemPrompt),
-    new HumanMessage(`Please summarize this GitHub repository:\n${repoContext}`)
-  ];
+{format_instructions}`],
+    ['human', `Please analyze this GitHub repository:
 
-  const response = await model.invoke(messages);
-  return response.content as string;
+Repository: {full_name}
+Description: {description}
+Primary Language: {language}
+Topics: {topics}
+Stars: {stars}
+Forks: {forks}
+{readme_section}`],
+  ]);
+
+  const chain = prompt.pipe(model).pipe(parser);
+
+  const result = await chain.invoke({
+    format_instructions: parser.getFormatInstructions(),
+    full_name: repoInfo.full_name,
+    description: repoInfo.description || 'No description provided',
+    language: repoInfo.language || 'Not specified',
+    topics: repoInfo.topics?.join(', ') || 'None',
+    stars: repoInfo.stargazers_count,
+    forks: repoInfo.forks_count,
+    readme_section: readmeContent ? `\nREADME Content:\n${readmeContent}` : '',
+  });
+
+  return result;
 }
 

@@ -16,9 +16,17 @@ interface RepositoryInfo {
   updatedAt: string;
 }
 
+interface AnalysisResult {
+  purpose: string;
+  features: string[];
+  techStack: string[];
+  targetAudience: string;
+  summary: string;
+}
+
 interface SummaryResult {
   repository: RepositoryInfo;
-  summary: string;
+  analysis: AnalysisResult;
   status: string;
 }
 
@@ -267,16 +275,61 @@ export default function UseCasesPage() {
                   )}
                 </div>
 
-                {/* AI Summary */}
+                {/* AI Analysis */}
                 <div className="bg-gradient-to-br from-purple-50 to-pink-50 rounded-2xl border border-purple-100 p-6">
                   <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500">
                       <path d="m12 3-1.912 5.813a2 2 0 0 1-1.275 1.275L3 12l5.813 1.912a2 2 0 0 1 1.275 1.275L12 21l1.912-5.813a2 2 0 0 1 1.275-1.275L21 12l-5.813-1.912a2 2 0 0 1-1.275-1.275L12 3Z"/>
                     </svg>
-                    AI-Generated Summary
+                    AI-Generated Analysis
                   </h3>
-                  <div className="prose prose-slate prose-sm max-w-none">
-                    <p className="text-slate-700 whitespace-pre-wrap leading-relaxed">{result.summary}</p>
+                  
+                  {/* Purpose */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Purpose</h4>
+                    <p className="text-slate-700 text-sm leading-relaxed">{result.analysis.purpose}</p>
+                  </div>
+
+                  {/* Key Features */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Key Features</h4>
+                    <ul className="space-y-2">
+                      {result.analysis.features.map((feature, index) => (
+                        <li key={index} className="flex items-start gap-2 text-sm text-slate-700">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-purple-500 mt-0.5 flex-shrink-0">
+                            <polyline points="20 6 9 17 4 12"/>
+                          </svg>
+                          {feature}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+
+                  {/* Tech Stack */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Technology Stack</h4>
+                    <div className="flex flex-wrap gap-2">
+                      {result.analysis.techStack.map((tech, index) => (
+                        <span 
+                          key={index} 
+                          className="px-3 py-1.5 text-xs font-medium bg-white text-purple-700 rounded-full border border-purple-200"
+                        >
+                          {tech}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Target Audience */}
+                  <div className="mb-6">
+                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Target Audience</h4>
+                    <p className="text-slate-700 text-sm leading-relaxed">{result.analysis.targetAudience}</p>
+                  </div>
+
+                  {/* Summary */}
+                  <div className="pt-4 border-t border-purple-200">
+                    <h4 className="text-sm font-semibold text-purple-800 mb-2">Summary</h4>
+                    <p className="text-slate-700 text-sm whitespace-pre-wrap leading-relaxed">{result.analysis.summary}</p>
                   </div>
                 </div>
               </div>
