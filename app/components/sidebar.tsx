@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname } from "next/navigation";
+import { useSession, signOut } from "next-auth/react";
 
 // Navigation item type
 interface NavItem {
@@ -164,6 +166,11 @@ function NavItemLink({ item, isActive }: { item: NavItem; isActive: boolean }) {
 // Main Sidebar component
 export function Sidebar() {
   const pathname = usePathname();
+  const { data: session } = useSession();
+
+  const handleSignOut = () => {
+    signOut({ callbackUrl: "/" });
+  };
 
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col min-h-screen">
@@ -191,19 +198,43 @@ export function Sidebar() {
         </ul>
       </nav>
 
-      {/* Footer - Optional user info or additional links */}
+      {/* Footer - User Profile */}
       <div className="p-4 border-t border-slate-100">
         <div className="flex items-center gap-3 px-3 py-2">
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500">
-              <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/>
-              <circle cx="12" cy="7" r="4"/>
-            </svg>
+          <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0">
+            {session?.user?.image ? (
+              <Image
+                src={session.user.image}
+                alt={session.user.name || "Profile"}
+                width={36}
+                height={36}
+                className="rounded-full object-cover"
+              />
+            ) : (
+              <span className="text-sm font-bold text-slate-600">
+                {session?.user?.name?.charAt(0) || session?.user?.email?.charAt(0) || "U"}
+              </span>
+            )}
           </div>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-medium text-slate-700 truncate">User</p>
-            <p className="text-xs text-slate-500 truncate">Free Plan</p>
+            <p className="text-sm font-medium text-slate-700 truncate">
+              {session?.user?.name || "User"}
+            </p>
+            <p className="text-xs text-slate-500 truncate">
+              {session?.user?.email || "Free Plan"}
+            </p>
           </div>
+          <button
+            onClick={handleSignOut}
+            className="p-1.5 rounded-lg hover:bg-slate-100 transition-colors text-slate-400 hover:text-slate-600"
+            title="Sign out"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" x2="9" y1="12" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
     </aside>
