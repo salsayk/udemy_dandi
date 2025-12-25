@@ -19,6 +19,7 @@ const plans = [
     ],
     cta: "Get Started",
     popular: false,
+    comingSoon: false,
   },
   {
     name: "Pro",
@@ -34,6 +35,7 @@ const plans = [
     ],
     cta: "Start Pro Trial",
     popular: true,
+    comingSoon: true,
   },
   {
     name: "Enterprise",
@@ -49,6 +51,7 @@ const plans = [
     ],
     cta: "Contact Sales",
     popular: false,
+    comingSoon: true,
   },
 ]
 
@@ -82,16 +85,23 @@ export function Pricing() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-6xl mx-auto items-stretch mt-4">
           {plans.map((plan, index) => (
             <Card
               key={index}
-              className={`relative ${plan.popular ? "border-primary shadow-lg shadow-primary/20 scale-105" : "border-border"}`}
+              className={`relative flex flex-col ${plan.popular ? "border-primary border-2 shadow-lg shadow-primary/20" : "border-border"}`}
             >
               {plan.popular && (
-                <div className="absolute -top-4 left-1/2 -translate-x-1/2">
-                  <span className="bg-primary text-primary-foreground text-sm font-semibold px-4 py-1 rounded-full">
+                <div className="absolute -top-3 left-1/2 -translate-x-1/2 z-10">
+                  <span className="bg-primary text-primary-foreground text-sm font-semibold px-4 py-1 rounded-full whitespace-nowrap">
                     Most Popular
+                  </span>
+                </div>
+              )}
+              {plan.comingSoon && (
+                <div className="absolute top-3 right-3">
+                  <span className="bg-amber-100 text-amber-700 text-xs font-semibold px-2.5 py-1 rounded-full border border-amber-200">
+                    Coming Soon
                   </span>
                 </div>
               )}
@@ -103,7 +113,7 @@ export function Pricing() {
                   {plan.price !== "Custom" && <span className="text-muted-foreground">/month</span>}
                 </div>
               </CardHeader>
-              <CardContent>
+              <CardContent className="flex-1">
                 <ul className="space-y-3">
                   {plan.features.map((feature, featureIndex) => (
                     <li key={featureIndex} className="flex items-start gap-2">
@@ -113,13 +123,14 @@ export function Pricing() {
                   ))}
                 </ul>
               </CardContent>
-              <CardFooter>
+              <CardFooter className="mt-auto">
                 <Button 
                   className="w-full" 
                   variant={plan.popular ? "default" : "outline"}
                   onClick={() => handlePlanClick(plan.name)}
+                  disabled={plan.comingSoon}
                 >
-                  {session && plan.name !== "Enterprise" ? "Go to Dashboard" : plan.cta}
+                  {plan.comingSoon ? "Coming Soon" : (session && plan.name !== "Enterprise" ? "Go to Dashboard" : plan.cta)}
                 </Button>
               </CardFooter>
             </Card>
