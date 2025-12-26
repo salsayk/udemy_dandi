@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabase, CreateApiKeyInput } from '@/app/lib/supabase';
+import { getAuthenticatedUser } from '@/app/lib/auth';
 
 // Check if Supabase is properly configured
 function isSupabaseConfigured(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-// GET - Fetch all API keys
+// GET - Fetch all API keys for the authenticated user
 export async function GET() {
   try {
     // Check configuration first
@@ -18,9 +19,21 @@ export async function GET() {
       );
     }
 
+    // Verify authentication and get user
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError) return authError;
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please sign in to access this resource.' },
+        { status: 401 }
+      );
+    }
+
+    // Fetch only the API keys belonging to this user
     const { data, error } = await supabase
       .from('api_keys')
       .select('*')
+      .eq('user_id', user.id)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -36,7 +49,7 @@ export async function GET() {
   }
 }
 
-// POST - Create a new API key
+// POST - Create a new API key for the authenticated user
 export async function POST(request: Request) {
   try {
     // Check configuration first
@@ -44,6 +57,16 @@ export async function POST(request: Request) {
       return NextResponse.json(
         { error: 'Database not configured. Please check your environment variables.' },
         { status: 503 }
+      );
+    }
+
+    // Verify authentication and get user
+    const { user, error: authError } = await getAuthenticatedUser();
+    if (authError) return authError;
+    if (!user) {
+      return NextResponse.json(
+        { error: 'Unauthorized. Please sign in to access this resource.' },
+        { status: 401 }
       );
     }
 
@@ -56,9 +79,11 @@ export async function POST(request: Request) {
       );
     }
 
+    // Create the API key with the user's ID
     const { data, error } = await supabase
       .from('api_keys')
       .insert({
+        user_id: user.id,
         name: body.name,
         key: body.key,
         type: body.type,
@@ -79,4 +104,3 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
-

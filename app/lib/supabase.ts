@@ -39,6 +39,7 @@ export interface CreateUserInput {
 // Type definitions for the api_keys table
 export interface ApiKey {
   id: string;
+  user_id: string;
   name: string;
   key: string;
   type: 'dev' | 'prod';
