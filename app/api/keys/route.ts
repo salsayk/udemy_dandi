@@ -80,6 +80,7 @@ export async function POST(request: Request) {
     }
 
     // Create the API key with the user's ID
+    // Default limit is 1000 if not specified
     const { data, error } = await supabase
       .from('api_keys')
       .insert({
@@ -88,6 +89,7 @@ export async function POST(request: Request) {
         key: body.key,
         type: body.type,
         usage: 0,
+        limit: body.limit ?? 1000,
       })
       .select()
       .single();

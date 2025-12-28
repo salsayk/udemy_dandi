@@ -7,33 +7,71 @@ function isSupabaseConfigured(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
 }
 
-// Validate API key from request headers
-async function validateApiKey(request: Request): Promise<{ valid: boolean; error?: string }> {
-  // const authHeader = request.headers.get('Authorization');
-  
-  // if (!authHeader) {
-  //   return { valid: false, error: 'Missing Authorization header' };
-  // }
+interface ApiKeyValidationResult {
+  valid: boolean;
+  error?: string;
+  statusCode?: number;
+  keyId?: string;
+}
 
-  // Extract the API key from Bearer token format
+// Validate API key from request headers and check usage limits
+async function validateApiKeyAndCheckLimit(request: Request): Promise<ApiKeyValidationResult> {
+  // Extract the API key from x-api-key header
   const apiKey = request.headers.get('x-api-key');
 
   if (!apiKey) {
-     return { valid: false, error: 'Invalid API key format' };
+    return { valid: false, error: 'Missing API key. Please provide x-api-key header.', statusCode: 401 };
   }
 
-  // Check if the API key exists in the database
+  // Check if the API key exists in the database and get usage info
   const { data, error } = await supabase
     .from('api_keys')
-    .select('id, name, type')
+    .select('id, name, type, usage, limit')
     .eq('key', apiKey)
     .single();
 
   if (error || !data) {
-    return { valid: false, error: 'Invalid API key' };
+    return { valid: false, error: 'Invalid API key', statusCode: 401 };
   }
 
-  return { valid: true };
+  // Check if usage has exceeded the limit
+  if (data.usage >= data.limit) {
+    return { 
+      valid: false, 
+      error: `Rate limit exceeded. You have used ${data.usage}/${data.limit} requests. Please upgrade your plan or wait for your limit to reset.`,
+      statusCode: 429 
+    };
+  }
+
+  return { valid: true, keyId: data.id };
+}
+
+// Increment usage count for an API key
+async function incrementApiKeyUsage(keyId: string): Promise<boolean> {
+  const { error } = await supabase.rpc('increment_api_key_usage', { key_id: keyId });
+  
+  // Fallback if RPC doesn't exist - use regular update
+  if (error) {
+    const { data: currentKey } = await supabase
+      .from('api_keys')
+      .select('usage')
+      .eq('id', keyId)
+      .single();
+
+    if (currentKey) {
+      const { error: updateError } = await supabase
+        .from('api_keys')
+        .update({ usage: currentKey.usage + 1 })
+        .eq('id', keyId);
+      
+      if (updateError) {
+        console.error('Error incrementing usage:', updateError);
+        return false;
+      }
+    }
+  }
+  
+  return true;
 }
 
 // GET - GitHub Summarizer endpoint
@@ -48,12 +86,12 @@ export async function GET(request: Request) {
       );
     }
 
-    // Validate API key
-    const validation = await validateApiKey(request);
+    // Validate API key and check limits
+    const validation = await validateApiKeyAndCheckLimit(request);
     if (!validation.valid) {
       return NextResponse.json(
         { error: validation.error },
-        { status: 401 }
+        { status: validation.statusCode || 401 }
       );
     }
 
@@ -79,12 +117,12 @@ export async function POST(request: Request) {
       );
     }
 
-    // Validate API key
-    const validation = await validateApiKey(request);
+    // Validate API key and check limits
+    const validation = await validateApiKeyAndCheckLimit(request);
     if (!validation.valid) {
       return NextResponse.json(
         { error: validation.error },
-        { status: 401 }
+        { status: validation.statusCode || 401 }
       );
     }
 
@@ -134,6 +172,11 @@ export async function POST(request: Request) {
 
     // Generate summary using LangChain and OpenAI with structured output
     const analysis = await generateSummary(repoInfo, readmeContent);
+
+    // Increment usage count AFTER successful processing
+    if (validation.keyId) {
+      await incrementApiKeyUsage(validation.keyId);
+    }
 
     return NextResponse.json({
       repository: {
@@ -212,4 +255,3 @@ async function fetchReadme(owner: string, repo: string): Promise<string | null> 
     return null;
   }
 }
-

@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS api_keys (
   key VARCHAR(255) NOT NULL UNIQUE,
   type VARCHAR(10) NOT NULL DEFAULT 'dev' CHECK (type IN ('dev', 'prod')),
   usage INTEGER DEFAULT 0,
+  "limit" INTEGER DEFAULT 1000,
   created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
@@ -74,10 +75,24 @@ GRANT ALL ON users TO authenticated;
 -- 1. First, add the user_id column if it doesn't exist:
 -- ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE CASCADE;
 --
--- 2. Update existing rows to assign them to a default user (replace 'default-user-email@example.com' with an actual user email):
+-- 2. Add the limit column if it doesn't exist:
+-- ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS "limit" INTEGER DEFAULT 1000;
+--
+-- 3. Update existing rows to assign them to a default user (replace 'default-user-email@example.com' with an actual user email):
 -- UPDATE api_keys 
 -- SET user_id = (SELECT id FROM users WHERE email = 'default-user-email@example.com' LIMIT 1)
 -- WHERE user_id IS NULL;
 --
--- 3. Make user_id NOT NULL after migration:
+-- 4. Make user_id NOT NULL after migration:
 -- ALTER TABLE api_keys ALTER COLUMN user_id SET NOT NULL;
+
+-- Optional: Create a stored procedure for atomic usage increment
+-- This prevents race conditions when incrementing usage
+CREATE OR REPLACE FUNCTION increment_api_key_usage(key_id UUID)
+RETURNS void AS $$
+BEGIN
+  UPDATE api_keys
+  SET usage = usage + 1
+  WHERE id = key_id;
+END;
+$$ LANGUAGE plpgsql;

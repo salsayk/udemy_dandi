@@ -44,6 +44,7 @@ export interface ApiKey {
   key: string;
   type: 'dev' | 'prod';
   usage: number;
+  limit: number;
   created_at: string;
 }
 
@@ -51,10 +52,12 @@ export interface CreateApiKeyInput {
   name: string;
   key: string;
   type: 'dev' | 'prod';
+  limit?: number;
 }
 
 export interface UpdateApiKeyInput {
   name?: string;
   type?: 'dev' | 'prod';
+  limit?: number;
 }
 

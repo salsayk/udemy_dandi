@@ -80,10 +80,19 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     const { id } = await params;
     const body: UpdateApiKeyInput = await request.json();
 
-    // Only allow updating name and type
+    // Only allow updating name, type, and limit
     const updates: UpdateApiKeyInput = {};
     if (body.name !== undefined) updates.name = body.name;
     if (body.type !== undefined) updates.type = body.type;
+    if (body.limit !== undefined) {
+      if (typeof body.limit !== 'number' || body.limit < 0) {
+        return NextResponse.json(
+          { error: 'Limit must be a non-negative number' },
+          { status: 400 }
+        );
+      }
+      updates.limit = body.limit;
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json(
