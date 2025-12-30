@@ -1,78 +1,38 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { useSession, signIn } from "next-auth/react"
 import { Button } from "@/components/ui/button"
-import { ArrowRight, Loader2, Sparkles, Star, GitFork, Check, ExternalLink } from "lucide-react"
-
-interface AnalysisResult {
-  repository?: {
-    name: string
-    fullName: string
-    description: string | null
-    url: string
-    stars: number
-    forks: number
-    language: string | null
-    topics: string[]
-  }
-  analysis?: {
-    purpose: string
-    features: string[]
-    techStack: string[]
-    targetAudience: string
-    summary: string
-  }
-  error?: string
-  aiPowered?: boolean
-}
+import { ArrowRight, Loader2, Sparkles } from "lucide-react"
 
 export function TryItOut() {
+  const router = useRouter()
+  const { data: session, status } = useSession()
   const [githubUrl, setGithubUrl] = useState("https://github.com/salsayk/udemy_dandi")
-  const [isLoading, setIsLoading] = useState(false)
-  const [result, setResult] = useState<AnalysisResult | null>(null)
-  const [error, setError] = useState<string | null>(null)
+  const [isRedirecting, setIsRedirecting] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     
     if (!githubUrl.trim()) return
 
-    setIsLoading(true)
-    setResult(null)
-    setError(null)
-
-    try {
-      // Add timeout using AbortController
-      const controller = new AbortController()
-      const timeoutId = setTimeout(() => controller.abort(), 60000) // 60 second timeout
-
-      const response = await fetch("/api/github-summarizer/demo", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ githubUrl: githubUrl.trim() }),
-        signal: controller.signal,
-      })
-
-      clearTimeout(timeoutId)
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || "An error occurred")
-      } else {
-        setResult(data)
-      }
-    } catch (err) {
-      if (err instanceof Error && err.name === 'AbortError') {
-        setError("Request timed out. Please try again.")
-      } else {
-        setError(err instanceof Error ? err.message : "Failed to connect to API")
-      }
-    } finally {
-      setIsLoading(false)
+    // Check authentication status
+    if (status === "loading") {
+      // Still loading, wait a moment
+      return
     }
+
+    setIsRedirecting(true)
+
+    if (!session) {
+      // Not authenticated - redirect to sign in
+      signIn("google", { callbackUrl: "/use-cases" })
+      return
+    }
+
+    // Authenticated - redirect to Use Cases page
+    router.push("/use-cases")
   }
 
   return (
@@ -133,13 +93,13 @@ export function TryItOut() {
 
                   <Button
                     type="submit"
-                    disabled={!githubUrl.trim() || isLoading}
+                    disabled={!githubUrl.trim() || isRedirecting || status === "loading"}
                     className="w-full bg-primary hover:bg-primary/90 text-primary-foreground group"
                   >
-                    {isLoading ? (
+                    {isRedirecting || status === "loading" ? (
                       <>
                         <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                        Analyzing...
+                        {session ? "Redirecting..." : "Signing in..."}
                       </>
                     ) : (
                       <>
@@ -151,7 +111,7 @@ export function TryItOut() {
                 </form>
 
                 <p className="mt-4 text-xs text-muted-foreground text-center">
-                  No API key required for demo. Limited to 3 requests per day.
+                  {session ? "Click to analyze in the Use Cases page" : "Sign in to start analyzing repositories"}
                 </p>
               </div>
             </div>
@@ -167,163 +127,105 @@ export function TryItOut() {
                   </div>
                   <span className="text-sm font-medium text-muted-foreground ml-2">AI Analysis</span>
                 </div>
-                <span className={`text-xs font-mono px-2 py-1 rounded ${
-                  error 
-                    ? "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400" 
-                    : result 
-                      ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
-                      : "bg-muted text-muted-foreground"
-                }`}>
-                  {error ? "ERROR" : result ? "200 OK" : "---"}
+                <span className="text-xs font-mono px-2 py-1 rounded bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400">
+                  200 OK
                 </span>
               </div>
               <div className="p-4 lg:p-6 h-[400px] lg:h-[450px] overflow-y-auto">
-                {/* Loading State */}
-                {isLoading && (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="flex flex-col items-center gap-3">
-                      <Loader2 className="h-10 w-10 animate-spin text-primary" />
-                      <span className="text-sm text-muted-foreground">Analyzing repository with AI...</span>
-                      <span className="text-xs text-muted-foreground">This may take 10-20 seconds</span>
-                    </div>
+                <div className="space-y-4">
+                  {/* Header */}
+                  <div className="flex items-center gap-2 text-primary">
+                    <Sparkles className="h-5 w-5" />
+                    <h3 className="font-semibold">AI-Generated Analysis</h3>
                   </div>
-                )}
 
-                {/* Error State */}
-                {error && !isLoading && (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center">
-                      <div className="w-12 h-12 rounded-full bg-red-100 dark:bg-red-900/30 flex items-center justify-center mx-auto mb-3">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-600 dark:text-red-400">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="12" x2="12" y1="8" y2="12"/>
-                          <line x1="12" x2="12.01" y1="16" y2="16"/>
+                  {/* Purpose */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Purpose
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      This project is designed to generate a full application via cursor prompting, specifically as part of a Udemy course.
+                    </p>
+                  </div>
+
+                  {/* Key Features */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Key Features
+                    </h4>
+                    <ul className="space-y-1.5">
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <svg className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12" />
                         </svg>
-                      </div>
-                      <p className="text-red-600 dark:text-red-400 font-medium">{error}</p>
+                        <span>Bootstrapped with create-next-app</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <svg className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Development server setup</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <svg className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Automatic page updates on file modification</span>
+                      </li>
+                      <li className="flex items-start gap-2 text-sm text-muted-foreground">
+                        <svg className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                        <span>Font optimization with next/font</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  {/* Tech Stack */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Technology Stack
+                    </h4>
+                    <div className="flex flex-wrap gap-1.5">
+                      <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-md">TypeScript</span>
+                      <span className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-md">Next.js</span>
                     </div>
                   </div>
-                )}
 
-                {/* Empty State */}
-                {!result && !error && !isLoading && (
-                  <div className="h-full flex items-center justify-center">
-                    <div className="text-center text-muted-foreground">
-                      <Sparkles className="h-10 w-10 mx-auto mb-3 opacity-50" />
-                      <p className="text-sm">Enter a GitHub URL and click &quot;Analyze Repository&quot;</p>
-                      <p className="text-xs mt-1">AI-powered analysis will appear here</p>
+                  {/* Target Audience */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Target Audience
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      Developers looking to learn Next.js and build applications using TypeScript.
+                    </p>
+                  </div>
+
+                  {/* Summary */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
+                      <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                      Summary
+                    </h4>
+                    <p className="text-sm text-muted-foreground leading-relaxed">
+                      The repository &apos;salsayk/udemy_dandi&apos; is a Next.js project that serves as a practical example for a Udemy course focused on application generation through cursor prompting. It provides a straightforward setup for running a development server and includes features such as automatic page updates and font optimization. The project is aimed at developers who want to enhance their skills in Next.js and TypeScript, offering resources and documentation for further learning.
+                    </p>
+                  </div>
+
+                  {/* AI Badge */}
+                  <div className="pt-3 border-t border-border">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <Sparkles className="h-3 w-3 text-primary" />
+                      AI-powered analysis • Example output
                     </div>
                   </div>
-                )}
-
-                {/* Result State */}
-                {result && !error && !isLoading && (
-                  <div className="space-y-4">
-                    {/* Repository Header */}
-                    {result.repository && (
-                      <div className="pb-4 border-b border-border">
-                        <div className="flex items-start justify-between gap-2 mb-2">
-                          <a 
-                            href={result.repository.url} 
-                            target="_blank" 
-                            rel="noopener noreferrer"
-                            className="text-lg font-semibold text-primary hover:underline flex items-center gap-1"
-                          >
-                            {result.repository.fullName}
-                            <ExternalLink className="h-4 w-4" />
-                          </a>
-                        </div>
-                        {result.repository.description && (
-                          <p className="text-sm text-muted-foreground mb-3">{result.repository.description}</p>
-                        )}
-                        <div className="flex flex-wrap gap-3 text-sm">
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <Star className="h-4 w-4 text-amber-500" />
-                            {result.repository.stars?.toLocaleString() || 0}
-                          </span>
-                          <span className="flex items-center gap-1 text-muted-foreground">
-                            <GitFork className="h-4 w-4" />
-                            {result.repository.forks?.toLocaleString() || 0}
-                          </span>
-                          {result.repository.language && (
-                            <span className="px-2 py-0.5 bg-primary/10 text-primary text-xs rounded-full">
-                              {result.repository.language}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* AI Analysis */}
-                    {result.analysis && (
-                      <div className="space-y-4">
-                        {/* Purpose */}
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            Purpose
-                          </h4>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{result.analysis.purpose}</p>
-                        </div>
-
-                        {/* Key Features */}
-                        {result.analysis.features && result.analysis.features.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                              Key Features
-                            </h4>
-                            <ul className="space-y-1.5">
-                              {result.analysis.features.slice(0, 4).map((feature, index) => (
-                                <li key={index} className="flex items-start gap-2 text-sm text-muted-foreground">
-                                  <Check className="h-4 w-4 text-green-500 mt-0.5 flex-shrink-0" />
-                                  <span>{feature}</span>
-                                </li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-
-                        {/* Tech Stack */}
-                        {result.analysis.techStack && result.analysis.techStack.length > 0 && (
-                          <div>
-                            <h4 className="text-sm font-semibold text-foreground mb-2 flex items-center gap-2">
-                              <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                              Tech Stack
-                            </h4>
-                            <div className="flex flex-wrap gap-1.5">
-                              {result.analysis.techStack.slice(0, 6).map((tech, index) => (
-                                <span 
-                                  key={index} 
-                                  className="px-2 py-1 bg-muted text-muted-foreground text-xs rounded-md"
-                                >
-                                  {tech}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {/* Summary */}
-                        <div>
-                          <h4 className="text-sm font-semibold text-foreground mb-1 flex items-center gap-2">
-                            <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                            Summary
-                          </h4>
-                          <p className="text-sm text-muted-foreground leading-relaxed">{result.analysis.summary}</p>
-                        </div>
-
-                        {/* AI Badge */}
-                        <div className="pt-3 border-t border-border">
-                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                            <Sparkles className="h-3 w-3 text-primary" />
-                            {result.aiPowered ? "AI-powered analysis" : "Basic analysis"} • Demo mode
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                )}
+                </div>
               </div>
             </div>
           </div>
