@@ -10,6 +10,7 @@ interface ApiKey {
   key: string;
   type: "dev" | "prod";
   usage: number;
+  limit: number;
   created_at: string;
 }
 
@@ -26,6 +27,33 @@ function generateApiKey(type: "dev" | "prod"): string {
 function maskApiKey(key: string): string {
   const prefix = key.split("_").slice(0, -1).join("_") + "_";
   return prefix + "*".repeat(28);
+}
+
+// Usage progress bar component
+function UsageProgress({ usage, limit }: { usage: number; limit: number }) {
+  const percentage = limit > 0 ? Math.min((usage / limit) * 100, 100) : 0;
+  const isNearLimit = percentage >= 80;
+  const isAtLimit = percentage >= 100;
+  
+  return (
+    <div className="flex items-center gap-2">
+      <div className="flex-1 min-w-[60px]">
+        <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden">
+          <div 
+            className={`h-full rounded-full transition-all ${
+              isAtLimit ? 'bg-red-500' : isNearLimit ? 'bg-amber-500' : 'bg-blue-500'
+            }`}
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+      <span className={`text-xs font-medium whitespace-nowrap ${
+        isAtLimit ? 'text-red-600' : isNearLimit ? 'text-amber-600' : 'text-slate-600'
+      }`}>
+        {usage.toLocaleString()} / {limit.toLocaleString()}
+      </span>
+    </div>
+  );
 }
 
 // Mobile API Key Card Component
@@ -74,8 +102,9 @@ function ApiKeyCard({
       </div>
 
       {/* Usage */}
-      <div className="text-sm text-slate-500">
-        Usage: <span className="font-medium text-slate-700">{apiKey.usage}</span>
+      <div className="space-y-1">
+        <div className="text-xs text-slate-500">Usage</div>
+        <UsageProgress usage={apiKey.usage} limit={apiKey.limit} />
       </div>
 
       {/* Actions */}
@@ -171,6 +200,7 @@ function DashboardContent() {
   const [editingKey, setEditingKey] = useState<ApiKey | null>(null);
   const [newKeyName, setNewKeyName] = useState("");
   const [newKeyType, setNewKeyType] = useState<"dev" | "prod">("dev");
+  const [newKeyLimit, setNewKeyLimit] = useState(1000);
   const [copiedId, setCopiedId] = useState<string | null>(null);
   const [revealedKeys, setRevealedKeys] = useState<Set<string>>(new Set());
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
@@ -231,6 +261,7 @@ function DashboardContent() {
         name: newKeyName.trim(),
         key: generateApiKey(newKeyType),
         type: newKeyType,
+        limit: newKeyLimit,
       };
 
       const response = await fetch('/api/keys', {
@@ -247,9 +278,7 @@ function DashboardContent() {
       const createdKey = await response.json();
       setApiKeys([createdKey, ...apiKeys]);
       setRevealedKeys(new Set([...revealedKeys, createdKey.id]));
-      setNewKeyName("");
-      setNewKeyType("dev");
-      setIsModalOpen(false);
+      resetModalState();
       notifyCreate(`API key "${createdKey.name}" created successfully`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to create API key';
@@ -271,6 +300,7 @@ function DashboardContent() {
         body: JSON.stringify({
           name: newKeyName.trim(),
           type: newKeyType,
+          limit: newKeyLimit,
         }),
       });
 
@@ -281,10 +311,7 @@ function DashboardContent() {
 
       const updatedKey = await response.json();
       setApiKeys(apiKeys.map((key) => (key.id === editingKey.id ? updatedKey : key)));
-      setNewKeyName("");
-      setNewKeyType("dev");
-      setEditingKey(null);
-      setIsModalOpen(false);
+      resetModalState();
       notifyUpdate(`API key "${updatedKey.name}" updated successfully`);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to update API key';
@@ -334,10 +361,19 @@ function DashboardContent() {
     setRevealedKeys(newRevealed);
   };
 
+  const resetModalState = () => {
+    setIsModalOpen(false);
+    setEditingKey(null);
+    setNewKeyName("");
+    setNewKeyType("dev");
+    setNewKeyLimit(1000);
+  };
+
   const openEditModal = (key: ApiKey) => {
     setEditingKey(key);
     setNewKeyName(key.name);
     setNewKeyType(key.type);
+    setNewKeyLimit(key.limit);
     setIsModalOpen(true);
   };
 
@@ -345,6 +381,7 @@ function DashboardContent() {
     setEditingKey(null);
     setNewKeyName("");
     setNewKeyType("dev");
+    setNewKeyLimit(1000);
     setIsModalOpen(true);
   };
 
@@ -544,7 +581,7 @@ function DashboardContent() {
                   <tr className="border-b border-slate-100">
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Name</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Usage</th>
+                    <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider min-w-[180px]">Usage / Limit</th>
                     <th className="px-6 py-4 text-left text-xs font-semibold text-slate-400 uppercase tracking-wider">Key</th>
                     <th className="px-6 py-4 text-right text-xs font-semibold text-slate-400 uppercase tracking-wider">Options</th>
                   </tr>
@@ -594,7 +631,7 @@ function DashboardContent() {
                           </span>
                         </td>
                         <td className="px-6 py-4">
-                          <span className="text-sm text-slate-600">{apiKey.usage}</span>
+                          <UsageProgress usage={apiKey.usage} limit={apiKey.limit} />
                         </td>
                         <td className="px-6 py-4">
                           <code className="text-sm font-mono text-slate-500 bg-slate-100 px-2.5 py-1 rounded-md">
@@ -691,12 +728,7 @@ function DashboardContent() {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
           <div
             className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-            onClick={() => {
-              setIsModalOpen(false);
-              setEditingKey(null);
-              setNewKeyName("");
-              setNewKeyType("dev");
-            }}
+            onClick={resetModalState}
           />
           <div className="relative w-full sm:max-w-md bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl max-h-[90vh] overflow-auto">
             <div className="p-4 lg:p-6 border-b border-slate-100">
@@ -759,15 +791,28 @@ function DashboardContent() {
                   </button>
                 </div>
               </div>
+              <div>
+                <label htmlFor="keyLimit" className="block text-sm font-medium text-slate-700 mb-2">
+                  Usage Limit
+                </label>
+                <input
+                  id="keyLimit"
+                  type="number"
+                  min="0"
+                  value={newKeyLimit}
+                  onChange={(e) => setNewKeyLimit(Math.max(0, parseInt(e.target.value) || 0))}
+                  placeholder="1000"
+                  className="w-full px-4 py-3 lg:py-2.5 rounded-xl border border-slate-200 text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-base lg:text-sm"
+                  disabled={isSaving}
+                />
+                <p className="mt-1.5 text-xs text-slate-500">
+                  Maximum number of API calls allowed. Set to 0 for unlimited.
+                </p>
+              </div>
             </div>
             <div className="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-2 sm:gap-3 p-4 lg:p-6 border-t border-slate-100">
               <button
-                onClick={() => {
-                  setIsModalOpen(false);
-                  setEditingKey(null);
-                  setNewKeyName("");
-                  setNewKeyType("dev");
-                }}
+                onClick={resetModalState}
                 disabled={isSaving}
                 className="px-5 py-3 sm:py-2.5 rounded-xl text-slate-600 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50"
               >

@@ -35,8 +35,6 @@ const navItems: NavItem[] = [
   { name: "API Playground", icon: "code", href: "/playground" },
   { name: "Use Cases", icon: "sparkles", href: "/use-cases" },
   { name: "Billing", icon: "credit-card", href: "/billing" },
-  { name: "Settings", icon: "settings", href: "/settings" },
-  { name: "Certification", icon: "award", href: "/certification" },
   { name: "Documentation", icon: "file-text", href: "https://docs.example.com", external: true },
   { name: "Dandi MCP", icon: "plug", href: "https://mcp.example.com", external: true },
 ];
@@ -201,6 +199,21 @@ function UserProfile() {
         <div className="flex-1 min-w-0">
           <div className="h-4 w-20 bg-slate-200 rounded animate-pulse mb-1" />
           <div className="h-3 w-28 bg-slate-100 rounded animate-pulse" />
+        </div>
+      </div>
+    );
+  }
+
+  // Show placeholder if not authenticated
+  if (status === "unauthenticated" || !session) {
+    return (
+      <div className="flex items-center gap-3 px-3 py-2">
+        <div className="w-9 h-9 rounded-full bg-gradient-to-br from-slate-200 to-slate-300 flex items-center justify-center overflow-hidden flex-shrink-0">
+          <span className="text-sm font-bold text-slate-600">U</span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-slate-700 truncate">Guest</p>
+          <p className="text-xs text-slate-500 truncate">Not signed in</p>
         </div>
       </div>
     );

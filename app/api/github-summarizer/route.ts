@@ -1,10 +1,26 @@
 import { NextResponse } from 'next/server';
 import { supabase } from '@/app/lib/supabase';
-import { generateSummary, GitHubRepoInfo } from './chain';
+import { generateSummary } from './chain';
+import { parseGitHubUrl, fetchAllRepoData } from '@/app/lib/githubUtils';
 
 // Check if Supabase is properly configured
 function isSupabaseConfigured(): boolean {
   return !!(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+}
+
+// Calculate language percentages from bytes
+function calculateLanguagePercentages(languages: Record<string, number>): { name: string; percentage: number; bytes: number }[] {
+  const totalBytes = Object.values(languages).reduce((sum, bytes) => sum + bytes, 0);
+  
+  if (totalBytes === 0) return [];
+  
+  return Object.entries(languages)
+    .map(([name, bytes]) => ({
+      name,
+      bytes,
+      percentage: Math.round((bytes / totalBytes) * 1000) / 10, // Round to 1 decimal place
+    }))
+    .sort((a, b) => b.percentage - a.percentage); // Sort by percentage descending
 }
 
 interface ApiKeyValidationResult {
@@ -136,24 +152,19 @@ export async function POST(request: Request) {
     }
 
     // Parse GitHub URL to extract owner and repo
-    const githubUrlPattern = /github\.com\/([^\/]+)\/([^\/]+)/;
-    const match = body.githubUrl.match(githubUrlPattern);
+    const parsed = parseGitHubUrl(body.githubUrl);
     
-    if (!match) {
+    if (!parsed) {
       return NextResponse.json(
         { error: 'Invalid GitHub repository URL. Format: https://github.com/owner/repo' },
         { status: 400 }
       );
     }
 
-    const [, owner, repo] = match;
-    const repoName = repo.replace(/\.git$/, ''); // Remove .git suffix if present
+    const { owner, repo } = parsed;
 
-    // Fetch repository information from GitHub API
-    const [repoInfo, readmeContent] = await Promise.all([
-      fetchRepoInfo(owner, repoName),
-      fetchReadme(owner, repoName)
-    ]);
+    // Fetch all repository data in parallel for optimal performance
+    const { repoInfo, readme, latestRelease, contributorsCount, languages } = await fetchAllRepoData(owner, repo);
 
     if (!repoInfo) {
       return NextResponse.json(
@@ -171,12 +182,15 @@ export async function POST(request: Request) {
     }
 
     // Generate summary using LangChain and OpenAI with structured output
-    const analysis = await generateSummary(repoInfo, readmeContent);
+    const analysis = await generateSummary(repoInfo, readme);
 
     // Increment usage count AFTER successful processing
     if (validation.keyId) {
       await incrementApiKeyUsage(validation.keyId);
     }
+
+    // Calculate language percentages
+    const languagePercentages = languages ? calculateLanguagePercentages(languages) : null;
 
     return NextResponse.json({
       repository: {
@@ -184,12 +198,36 @@ export async function POST(request: Request) {
         fullName: repoInfo.full_name,
         description: repoInfo.description,
         url: repoInfo.html_url,
+        websiteUrl: repoInfo.homepage || null,
         stars: repoInfo.stargazers_count,
         forks: repoInfo.forks_count,
-        language: repoInfo.language,
+        watchers: repoInfo.watchers_count,
+        openIssues: repoInfo.open_issues_count,
+        contributors: contributorsCount,
+        primaryLanguage: repoInfo.language,
+        languages: languagePercentages,
         topics: repoInfo.topics || [],
+        license: repoInfo.license ? {
+          key: repoInfo.license.key,
+          name: repoInfo.license.name,
+          spdxId: repoInfo.license.spdx_id,
+          url: repoInfo.license.url,
+        } : null,
+        defaultBranch: repoInfo.default_branch,
+        size: repoInfo.size,
+        archived: repoInfo.archived,
+        visibility: repoInfo.visibility,
         createdAt: repoInfo.created_at,
         updatedAt: repoInfo.updated_at,
+        pushedAt: repoInfo.pushed_at,
+        latestVersion: latestRelease?.tag_name || null,
+        latestRelease: latestRelease ? {
+          version: latestRelease.tag_name,
+          name: latestRelease.name,
+          publishedAt: latestRelease.published_at,
+          url: latestRelease.html_url,
+          isPrerelease: latestRelease.prerelease,
+        } : null,
       },
       analysis: {
         purpose: analysis.purpose,
@@ -204,54 +242,5 @@ export async function POST(request: Request) {
     console.error('Server error:', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
     return NextResponse.json({ error: message }, { status: 500 });
-  }
-}
-
-// Helper function to fetch repository information from GitHub API
-async function fetchRepoInfo(owner: string, repo: string): Promise<GitHubRepoInfo | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'GitHub-Summarizer-API',
-        ...(process.env.GITHUB_TOKEN && { 'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` })
-      }
-    });
-
-    if (!response.ok) {
-      console.error(`GitHub API error: ${response.status}`);
-      return null;
-    }
-
-    return await response.json();
-  } catch (error) {
-    console.error('Error fetching repo info:', error);
-    return null;
-  }
-}
-
-// Helper function to fetch README content
-async function fetchReadme(owner: string, repo: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'GitHub-Summarizer-API',
-        ...(process.env.GITHUB_TOKEN && { 'Authorization': `Bearer ${process.env.GITHUB_TOKEN}` })
-      }
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    // Decode base64 content
-    const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    // Truncate if too long (to avoid token limits)
-    return content.length > 10000 ? content.substring(0, 10000) + '...' : content;
-  } catch (error) {
-    console.error('Error fetching README:', error);
-    return null;
   }
 }

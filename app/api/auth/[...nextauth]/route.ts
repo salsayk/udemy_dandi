@@ -2,12 +2,29 @@ import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
 import { supabase } from "@/app/lib/supabase";
 
+// Validate required environment variables
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+
+if (!googleClientId || !googleClientSecret) {
+  console.warn("Warning: GOOGLE_CLIENT_ID or GOOGLE_CLIENT_SECRET not configured");
+}
+
+if (!nextAuthSecret) {
+  console.warn("Warning: NEXTAUTH_SECRET not configured. Authentication may not work properly.");
+}
+
 export const authOptions: NextAuthOptions = {
   providers: [
-    GoogleProvider({
-      clientId: process.env.GOOGLE_CLIENT_ID!,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
-    }),
+    ...(googleClientId && googleClientSecret
+      ? [
+          GoogleProvider({
+            clientId: googleClientId,
+            clientSecret: googleClientSecret,
+          }),
+        ]
+      : []),
   ],
   callbacks: {
     async signIn({ user, account, profile }) {
@@ -95,7 +112,9 @@ export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
   },
-  secret: process.env.NEXTAUTH_SECRET,
+  // Use env secret or a fallback for development (NOT recommended for production)
+  secret: nextAuthSecret || (process.env.NODE_ENV === "development" ? "dev-secret-please-set-nextauth-secret" : undefined),
+  debug: process.env.NODE_ENV === "development",
 };
 
 const handler = NextAuth(authOptions);

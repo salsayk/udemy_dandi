@@ -2,20 +2,10 @@ import { ChatOpenAI } from '@langchain/openai';
 import { StructuredOutputParser } from '@langchain/core/output_parsers';
 import { ChatPromptTemplate } from '@langchain/core/prompts';
 import { z } from 'zod';
+import { GitHubRepoInfo } from '@/app/lib/githubUtils';
 
-// GitHub repository information interface
-export interface GitHubRepoInfo {
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  stargazers_count: number;
-  forks_count: number;
-  language: string | null;
-  topics: string[];
-  created_at: string;
-  updated_at: string;
-}
+// Re-export GitHubRepoInfo for backwards compatibility
+export type { GitHubRepoInfo };
 
 // Structured output schema for the summary
 const summarySchema = z.object({
