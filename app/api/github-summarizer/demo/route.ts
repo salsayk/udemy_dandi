@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
-import { generateSummary, GitHubRepoInfo } from '../chain';
+import { generateSummary } from '../chain';
+import { 
+  parseGitHubUrl, 
+  fetchRepoInfo, 
+  fetchReadme,
+  GitHubRepoInfo 
+} from '@/app/lib/githubUtils';
 
 // Simple in-memory rate limiting (resets on server restart)
 const rateLimitMap = new Map<string, { count: number; resetTime: number }>();
@@ -31,66 +37,8 @@ function checkRateLimit(key: string): { allowed: boolean; remaining: number } {
   return { allowed: true, remaining: RATE_LIMIT - record.count };
 }
 
-// GitHub API repository interface (different from chain.ts GitHubRepoInfo)
-interface GitHubApiRepoInfo {
-  name: string;
-  full_name: string;
-  description: string | null;
-  html_url: string;
-  stargazers_count: number;
-  forks_count: number;
-  language: string | null;
-  topics: string[];
-  created_at: string;
-  updated_at: string;
-}
-
-// Fetch repository info from GitHub API
-async function fetchRepoInfo(owner: string, repo: string): Promise<GitHubApiRepoInfo | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Dandi-GitHub-Analyzer',
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    return await response.json();
-  } catch {
-    return null;
-  }
-}
-
-// Fetch README content from GitHub
-async function fetchReadme(owner: string, repo: string): Promise<string | null> {
-  try {
-    const response = await fetch(`https://api.github.com/repos/${owner}/${repo}/readme`, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'User-Agent': 'Dandi-GitHub-Analyzer',
-      },
-    });
-
-    if (!response.ok) {
-      return null;
-    }
-
-    const data = await response.json();
-    // Decode base64 content
-    const content = Buffer.from(data.content, 'base64').toString('utf-8');
-    // Limit README content to first 2000 characters for demo
-    return content.slice(0, 2000);
-  } catch {
-    return null;
-  }
-}
-
 // Generate a simple summary without OpenAI (fallback)
-function generateFallbackSummary(repoInfo: GitHubApiRepoInfo): {
+function generateFallbackSummary(repoInfo: GitHubRepoInfo): {
   purpose: string;
   features: string[];
   techStack: string[];
@@ -143,21 +91,20 @@ export async function POST(request: Request) {
       );
     }
 
-    // Parse GitHub URL
-    const githubUrlPattern = /^https?:\/\/github\.com\/([^\/]+)\/([^\/]+)\/?.*$/;
-    const match = body.githubUrl.match(githubUrlPattern);
+    // Parse GitHub URL using shared utility
+    const parsedUrl = parseGitHubUrl(body.githubUrl);
 
-    if (!match) {
+    if (!parsedUrl) {
       return NextResponse.json(
         { error: 'Invalid GitHub URL format. Expected: https://github.com/owner/repository' },
         { status: 400 }
       );
     }
 
-    const [, owner, repo] = match;
+    const { owner, repo } = parsedUrl;
 
-    // Fetch repository information
-    const repoInfo = await fetchRepoInfo(owner, repo.replace(/\.git$/, ''));
+    // Fetch repository information using shared utility
+    const repoInfo = await fetchRepoInfo(owner, repo);
 
     if (!repoInfo) {
       return NextResponse.json(
@@ -166,8 +113,8 @@ export async function POST(request: Request) {
       );
     }
 
-    // Fetch README for better AI analysis
-    const readmeContent = await fetchReadme(owner, repo.replace(/\.git$/, ''));
+    // Fetch README for better AI analysis using shared utility
+    const readmeContent = await fetchReadme(owner, repo);
 
     // Try to use AI summarizer if OpenAI API key is available
     let analysis;
@@ -175,21 +122,8 @@ export async function POST(request: Request) {
 
     if (process.env.OPENAI_API_KEY) {
       try {
-        // Convert to the format expected by generateSummary
-        const repoInfoForAI: GitHubRepoInfo = {
-          name: repoInfo.name,
-          full_name: repoInfo.full_name,
-          description: repoInfo.description,
-          html_url: repoInfo.html_url,
-          stargazers_count: repoInfo.stargazers_count,
-          forks_count: repoInfo.forks_count,
-          language: repoInfo.language,
-          topics: repoInfo.topics || [],
-          created_at: repoInfo.created_at,
-          updated_at: repoInfo.updated_at,
-        };
-        
-        analysis = await generateSummary(repoInfoForAI, readmeContent);
+        // repoInfo is already GitHubRepoInfo type from fetchRepoInfo
+        analysis = await generateSummary(repoInfo, readmeContent);
         usedAI = true;
       } catch (aiError) {
         console.error('AI summarization failed, falling back to basic summary:', aiError);
